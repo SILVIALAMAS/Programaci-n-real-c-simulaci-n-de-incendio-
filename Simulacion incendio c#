@@ -1,0 +1,143 @@
+using UnityEngine;
+using UnityEngine.UI;
+
+public class SimuladorFuego2D : MonoBehaviour
+{
+    [Header("Parámetros del bosque")]
+    public int ancho = 100;
+    public int alto = 100;
+    public float densidadArboles = 0.8f;
+
+    [Header("Parámetros del fuego")]
+    public float velocidadFuego = 0.3f;
+    public float probPropagacion = 0.4f;
+
+    [Header("Parámetros del viento y clima")]
+    public float intensidadViento = 0.5f;
+    public float velocidadViento = 0.5f;
+    public Vector2 direccionViento = Vector2.right;
+    public float lluvia = 0.2f;
+
+    [Header("Referencias UI (Sliders)")]
+    public Slider sliderLluvia;
+    public Slider sliderIntensidadViento;
+    public Slider sliderVelocidadViento;
+    public Slider sliderDireccionViento;
+    public Slider sliderVelocidadFuego;
+    public Slider sliderDensidadArboles;
+
+    private int[,] bosque;
+    private Texture2D textura;
+    private Renderer render;
+
+    private void Start()
+    {
+        bosque = new int[ancho, alto];
+        textura = new Texture2D(ancho, alto);
+        render = GetComponent<Renderer>();
+
+        InicializarBosque();
+        ActualizarTextura();
+
+        InvokeRepeating(nameof(PropagarFuego), 1f, velocidadFuego);
+    }
+
+    void Update()
+    {
+        // Actualizar parámetros desde los sliders
+        if (sliderLluvia) lluvia = sliderLluvia.value;
+        if (sliderIntensidadViento) intensidadViento = sliderIntensidadViento.value;
+        if (sliderVelocidadViento) velocidadViento = sliderVelocidadViento.value;
+        if (sliderDireccionViento) direccionViento.x = sliderDireccionViento.value;
+        if (sliderVelocidadFuego) velocidadFuego = sliderVelocidadFuego.value;
+        if (sliderDensidadArboles) densidadArboles = sliderDensidadArboles.value;
+    }
+
+    void InicializarBosque()
+    {
+        for (int x = 0; x < ancho; x++)
+        {
+            for (int y = 0; y < alto; y++)
+            {
+                if (Random.value < densidadArboles)
+                    bosque[x, y] = 1; // árbol
+                else
+                    bosque[x, y] = 0; // vacío
+            }
+        }
+        bosque[ancho / 2, alto / 2] = 2; // fuego inicial
+    }
+
+    void PropagarFuego()
+    {
+        int[,] nuevoBosque = (int[,])bosque.Clone();
+
+        for (int x = 0; x < ancho; x++)
+        {
+            for (int y = 0; y < alto; y++)
+            {
+                if (bosque[x, y] == 2)
+                {
+                    nuevoBosque[x, y] = 3; // quemado
+                    Propagar(x, y, nuevoBosque);
+                }
+            }
+        }
+
+        bosque = nuevoBosque;
+        ActualizarTextura();
+    }
+
+    void Propagar(int x, int y, int[,] nuevoBosque)
+    {
+        for (int dx = -1; dx <= 1; dx++)
+        {
+            for (int dy = -1; dy <= 1; dy++)
+            {
+                int nx = x + dx;
+                int ny = y + dy;
+
+                if (nx >= 0 && ny >= 0 && nx < ancho && ny < alto)
+                {
+                    if (bosque[nx, ny] == 1)
+                    {
+                        float chance = probPropagacion;
+
+                        // Efecto del viento
+                        if (dx == Mathf.Sign(direccionViento.x))
+                            chance += intensidadViento * 0.2f;
+
+                        // Efecto de la lluvia (disminuye propagación)
+                        chance -= lluvia * 0.3f;
+
+                        if (Random.value < chance)
+                            nuevoBosque[nx, ny] = 2;
+                    }
+                }
+            }
+        }
+    }
+
+    void ActualizarTextura()
+    {
+        for (int x = 0; x < ancho; x++)
+        {
+            for (int y = 0; y < alto; y++)
+            {
+                Color color;
+                switch (bosque[x, y])
+                {
+                    case 0: color = Color.black; break; // vacío
+                    case 1: color = new Color(0f, 0.6f, 0f); break; // árbol verde
+                    case 2: color = Color.red; break; // fuego
+                    case 3: color = new Color(0.4f, 0.2f, 0f); break; // quemado marrón
+                    default: color = Color.gray; break;
+                }
+                textura.SetPixel(x, y, color);
+            }
+        }
+        textura.Apply();
+        render.material.mainTexture = textura;
+    }
+}
+
